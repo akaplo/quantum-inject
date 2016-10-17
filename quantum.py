@@ -1,7 +1,7 @@
 # python 2.7
 # how to run: python quantum.py --interface eth0 --regexp /^regex$/ --datafile someFIle expr
 import argparse
-import scapy
+from scapy.all import *
 import re
 
 parser = argparse.ArgumentParser(description='idk')
@@ -11,20 +11,25 @@ parser.add_argument("--datafile", help="datafile input")
 parser.add_argument("expression", help="straight up input")
 
 args = parser.parse_args()
-print args
-print args.interface
-print args.regexp
-print args.datafile
-print args.expression
+# print args
+# print args.interface
+# print args.regexp
+# print args.datafile
+# print args.expression
+
+# callback, called for each sniffed packet
+# Determine whether we should allow it or not.
+def determine_bad_packet(packet):
+    print packet[IP].src, packet[IP].dst
 
 # sniff the given interface for tcp packets
-packets = scapy.sniff(iface=args.interface, filter="tcp")
+packets = sniff(iface=args.interface, count=10, filter="tcp", prn=determine_bad_packet)
 # compile the given regex for use
 regex = re.compile(args.regexp)
 # must check each packet individually
-for packet in  packets:
-    # re.match vs re.search?
-    # packet must be a string, so this may not work
-    # See if the packet matches the given regex
-    if(re.search(regex, packet)):
-        print packet
+# for packet in  packets:
+#     # re.match vs re.search?
+#     # packet must be a string, so this may not work
+#     # See if the packet matches the given regex
+#     if(re.search(regex, packet)):
+#         print packet
