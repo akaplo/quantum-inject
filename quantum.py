@@ -25,16 +25,30 @@ def determine_bad_packet(packet):
     regex = re.compile(args.regexp)
     # If the regex has any matches in the tcp
     # payload, we should inject a packet!
-    if (re.search(regex, packet[TCP][Raw].load)):
-        print 'matched'
-        inject_packet(packet)
+    try:
+        packet[TCP][Raw]
+    except IndexError:
+        return
+    else:
+        if re.search(regex, packet[TCP][Raw].load):
+            print 'matched'
+            inject_packet(packet)
 
 # Given a flagged packet, injects a packet
 def inject_packet (flagged_packet):
-
+    to_inject = flagged_packet#Ether()/IP()/TCP()/args.datafile
+    #Ether fields
+    to_inject[Ether].src = flagged_packet[Ether].dst
+    to_inject[Ether].dst = flagged_packet[Ether].src
+    # IP fields
+    to_inject[IP].src = flagged_packet[IP].dst
+    to_inject[IP].dst = flagged_packet[IP].src
+    # TCP fields
+    to_inject[TCP].sport = flagged_packet[TCP].dport
+    to_inject[TCP].dport = flagged_packet[TCP].sport
 
 # sniff the given interface for tcp packets
-packets = sniff(iface=args.interface, count=10, filter="tcp", prn=determine_bad_packet)
+packets = sniff(iface=args.interface, count=10, filter="tcp and port 80", prn=determine_bad_packet)
 
 # must check each packet individually
 # for packet in  packets:
