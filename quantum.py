@@ -21,11 +21,21 @@ args = parser.parse_args()
 # Determine whether we should allow it or not.
 def determine_bad_packet(packet):
     print packet[IP].src, packet[IP].dst
+    # compile the given regex for use
+    regex = re.compile(args.regexp)
+    # If the regex has any matches in the tcp
+    # payload, we should inject a packet!
+    if (re.search(regex, packet[TCP][Raw].load)):
+        print 'matched'
+        inject_packet(packet)
+
+# Given a flagged packet, injects a packet
+def inject_packet (flagged_packet):
+
 
 # sniff the given interface for tcp packets
 packets = sniff(iface=args.interface, count=10, filter="tcp", prn=determine_bad_packet)
-# compile the given regex for use
-regex = re.compile(args.regexp)
+
 # must check each packet individually
 # for packet in  packets:
 #     # re.match vs re.search?
