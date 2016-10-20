@@ -46,6 +46,7 @@ def inject_packet (flagged_packet):
     # TCP fields
     to_inject[TCP].sport = flagged_packet[TCP].dport
     to_inject[TCP].dport = flagged_packet[TCP].sport
+    send(to_inject)
 
 # sniff the given interface for tcp packets
 packets = sniff(iface=args.interface, count=10, filter="tcp and port 80", prn=determine_bad_packet)
