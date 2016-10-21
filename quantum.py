@@ -37,17 +37,21 @@ def determine_bad_packet(packet):
 # Given a flagged packet, injects a packet
 def inject_packet (flagged_packet):
     #to_inject = flagged_packet
+    print "flagged " + flagged_packet.summary()
+    print flagged_packet[TCP][Raw].load
     to_inject = Ether()/IP()/TCP()/args.datafile
     #Ether fields
     to_inject[Ether].src = flagged_packet[Ether].dst
     to_inject[Ether].dst = flagged_packet[Ether].src
     # IP fields
-    to_inject[IP].src = "192.168.1.1" #flagged_packet[IP].dst
+    to_inject[IP].src = flagged_packet[IP].dst #"192.168.1.1"
     to_inject[IP].dst = flagged_packet[IP].src
     # TCP fields
     to_inject[TCP].sport = flagged_packet[TCP].dport
     to_inject[TCP].dport = flagged_packet[TCP].sport
-    to_inject[TCP].flags = "A"
+    to_inject[TCP].seq = flagged_packet[TCP].seq + 100
+    to_inject[TCP].ack = flagged_packet[TCP].ack + 100
+    to_inject[TCP].flags = "P"
     del to_inject.chksum
     print to_inject.summary()
     to_inject = to_inject.__class__(str(to_inject))
