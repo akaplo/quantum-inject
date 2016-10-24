@@ -1,6 +1,6 @@
 # python 2.7
 # how to run: python quantum.py --interface eth0 --regexp /^regex$/ --datafile someFIle expr
-# python quantum.py --interface en0 --regexp chewbacca --datafile "<html><head><title> an example </title> </head><body> Hello World, </body></html>" pol
+# python quantum.py --interface en0 --regexp chewbacca --datafile datafile.txt "tcp and port 80"
 import argparse
 from scapy.all import *
 import re
@@ -10,7 +10,7 @@ parser = argparse.ArgumentParser(description='idk')
 parser.add_argument("-i", "--interface", default="en0", help="Network interface to listen on")
 parser.add_argument("-r", "--regexp", help="A regular expression that will be used to flag packets")
 parser.add_argument("-d", "--datafile", help="Used as the TCP Raw payload for the injected packet(s)")
-parser.add_argument("expression", default="tcp and port 80", help="A filter for packet sniffing (eg 'tcp and port 80' for HTTP-only)")
+parser.add_argument("expression", default="tcp and port 80", help="A filter for packet sniffing (eg 'tcp and port 80' for HTTP-only). MUST BE SURROUNDED BY QUOTATION MARKS")
 
 args = parser.parse_args()
 # print args
