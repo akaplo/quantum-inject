@@ -1,5 +1,6 @@
 # python 2.7
 # how to run: python quantum.py --interface eth0 --regexp /^regex$/ --datafile someFIle expr
+# python quantum.py --interface en0 --regexp chewbacca --datafile "<html><head><title> an example </title> </head><body> Hello World, </body></html>" pol
 import argparse
 from scapy.all import *
 import re

@@ -11,43 +11,66 @@
 # how to run: python quantum.py --interface eth0 --regexp /^regex$/ --datafile someFIle expr
 import argparse
 from scapy.all import *
+import re
+from time import *
 
-parser = argparse.ArgumentParser(description='idk')
-parser.add_argument("--interface", help="interface")
 
-parser.add_argument("--file", help="tcpdump input to parse and check for injections")
-parser.add_argument("expression", help="straight up input")
+parser = argparse.ArgumentParser()
+parser.add_argument("-i", "--interface", dest="interface", help="interface", required=True)
+
+parser.add_argument("-r", "--file", dest="file", help="tcpdump input to parse and check for injections")
 
 args = parser.parse_args()
 
-sniffed_packets = []
+sniffed = []
+
+def find_injected_packets(pkt_list):
+    #print 'hello'
+    for index, packet in enumerate(pkt_list):
+        #print index
+        #print sniffed_packets
+        try:
+            packet[TCP][Raw]
+        except IndexError:
+            print 'packet doesnt have raw payload'
+        else:
+            try:
+                pkt_list[index+1][TCP][Raw]
+            except IndexError:
+                print 'packet doesnt have raw payload'
+            else:
+                if index < len(pkt_list) - 1:
+                    #print packet[TCP].seq
+                    if packet[TCP].seq == pkt_list[index+1][TCP].seq:
+                        # the sequence numbers are equal. Might be a duplicate!
+                        # Let's check for equivalent acks too
+                        print 'matched seqnum'
+                        if packet[TCP].ack == pkt_list[index+1][TCP].ack:
+                            # the ack numbers are equal too!
+                            # If the payload is not the same, then
+                            # we can say the packet that came first is injected
+                            print 'matched acknum'
+                            #print packet[TCP][Raw].load
+                            #print pkt_list[index+1][TCP][Raw].load
+                            if packet[TCP][Raw].load != pkt_list[index+1][TCP][Raw].load:
+                                print 'Looks like an injected packet!'
+                                print packet[TCP][Raw].load
+
+
+def append_pkt(pkt):
+    print 'append packet'
+    global sniffed
+    if len(sniffed) > 500:
+        print 'got to 500 packets!'
+        sniffed.sort(key=lambda pkt: pkt[TCP].seq)
+        find_injected_packets(sniffed)
+        sniffed = sniffed[400:500]
+    else:
+        sniffed.append(pkt)
 
 if (args.file):
     input_dump = rdpcap(args.file)
     sorted_dump = sorted(input_dump, key=lambda pkt: pkt[TCP].seq)
     find_injected_packets(sorted_dump)
 else:
-    global sniffed_packets = sniff(iface=args.interface, filter="tcp and port 80", lfilter=lambda p: "GET" in str(p),
-        prn=determine_sniffed_injection)
-
-def determine_sniffed_injection(packet):
-    global sniffed_packets.sort(key=lambda pkt: pkt[TCP].seq)
-    find_injected_packets(sniffed_packets)
-
-def find_injected_packets(pkt_list):
-    for index, packet in enumerate(pkt_list):
-        try:
-            packet[TCP][Raw]
-        except IndexError:
-            print 'packet doesnt have raw payload'
-        else:
-            if packet[TCP].seq == pkt_list[index+1][TCP].seq:
-                # the sequence numbers are equal. Might be a duplicate!
-                # Let's check for equivalent acks too
-                if packet[TCP].ack == pkt_list[index+1][TCP].ack:
-                    # the ack numbers are equal too!
-                    # If the payload is not the same, then
-                    # we can say the packet that came first is injected
-                    if packet[TCP][Raw].load != pkt_list[index+1][TCP][Raw].load:
-                        print 'Looks like an injected packet!'
-                        print packet.summary()
+    sniffed_packets = sniff(iface=args.interface, filter="tcp port 80", lfilter=lambda r: r.haslayer(Raw), prn=append_pkt)
