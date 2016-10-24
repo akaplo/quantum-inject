@@ -1,6 +1,6 @@
 # python 2.7
-# how to run: python quantum.py --interface eth0 --regexp /^regex$/ --datafile someFIle expr
-# python quantum.py --interface en0 --regexp chewbacca --datafile datafile.txt "tcp and port 80"
+# how to run: python quantum.py --interface some_network_interface --regexp some_regular_expression --datafile some_filepath some_expression_for_filtering
+# example that I used during testing: python quantum.py --interface en0 --regexp chewbacca --datafile datafile.txt "tcp and port 80"
 import argparse
 from scapy.all import *
 import re
@@ -79,6 +79,8 @@ def form_packet (payload, flagged_packet):
 
     to_inject[TCP].flags = "PA"
     del to_inject.chksum
+    # We don't need to specify an outgoing interface,
+    # scapy remembers where we're sniffing from
     send_packet(to_inject)
 
 # Helper function to read the datafile
