@@ -8,7 +8,6 @@ from time import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-i", "--interface", default="en0", dest="interface", help="interface", required=True)
-
 parser.add_argument("-r", "--file", dest="file", help="tcpdump input to parse and check for injections")
 parser.add_argument("expression", default="tcp and port 80", help="A filter for packet sniffing (eg 'tcp and port 80' for HTTP-only). MUST BE SURROUNDED BY QUOTATION MARKS")
 args = parser.parse_args()

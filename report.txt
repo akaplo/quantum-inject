@@ -1,0 +1,258 @@
+Aaron Kaplowitz - 590B HW2
+
+**** Description ****
+
+My two scripts heavily leverage the Python library "Scapy"
+for the sniffing, forming, and injecting of packets.  Scapy allows
+us to focus solely on the tasks at hand - injecting a properly formed
+packet and detecting a successfully injected packet.
+
+quantum-inject accepts a network interface to listen on,
+a regular expression to check packets against, a file containing
+the contents to use as the injected TCP payload (***the script takes care of HTTP
+headers for the user**, but this is configurable by commenting out a single line),
+and an expression to use as the sniffing filter - the script recommends a default
+of "tcp and port 80."  It uses all of these to quickly form and inject
+a packet that the browser accepts as truth in response to a sniffed packet
+that matches the regular expression.
+
+quantum-detect accepts a network interface to listen on, a tcpdump/pcap/etc file
+to analyze, and an expression for filtering the packets.  If a dump file is passed,
+the detector will follow the strategy defined below.  Otherwise, it will sniff packets
+from the given interface in real-time and, again, follow the strategy defined below.
+
+**** Detection Strategy ****
+
+My detector checks every HTTP packet it sees against every HTTP
+packet it HAS seen.  For each of these pairs, it looks for header values
+from the IP and TCP layers.
+
+If a pair of packets have many matching header values,
+namely src, dst, sport, dport, seq, and ack, the final test for whether one was
+injected is to check the TCP payload.
+
+If the payloads are NOT equal,
+we can assume one was injected, because otherwise the packets would be essentially
+the EXACT same thing, which would indicate a simple retransmision.
+
+The detector assumes that the more recently sniffed of the pair is the legitmate packet,
+and labels it as such.  This is because a successful injector's packets
+will arrive before the legitimate ones.  However, the pair will be flagged
+regardless of whether the injected packet arrived before the legitimate one.
+
+**** Detector Output ****
+
+When given the pcap file provided in this folder as input,
+the detector had the following output:
+
+
+************************************************************************
+Found an injected packet!
+Injected packet:
+###[ Ethernet ]###
+  dst       = ac:bc:32:97:5b:01
+  src       = 76:54:7d:a8:a2:03
+  type      = 0x800
+###[ IP ]###
+     version   = 4L
+     ihl       = 5L
+     tos       = 0x0
+     len       = 274
+     id        = 58863
+     flags     =
+     frag      = 0L
+     ttl       = 64
+     proto     = tcp
+     chksum    = 0x329
+     src       = 50.198.83.205
+     dst       = 10.0.0.59
+     \options   \
+###[ TCP ]###
+        sport     = http
+        dport     = 49486
+        seq       = 3585446781
+        ack       = 1076706841
+        dataofs   = 5L
+        reserved  = 0L
+        flags     = PA
+        window    = 8192
+        chksum    = 0x589
+        urgptr    = 0
+        options   = []
+###[ Raw ]###
+           load      = 'HTTP/1.1 200 OK\r\nDate: Tue, 25 Oct 2016 02:45:21 GMT\r\nServer: Apache\r\nCache-Control: public, max-age=300\r\nConnection: close\r\nContent-type: text/html\r\n\r\n<html><title>Hi!</title><body><div><h1>YOYOYOYOYOYOYOYOY</h1></div></body></html>\n'
+None
+Legitmate packet:
+###[ Ethernet ]###
+  dst       = ac:bc:32:97:5b:01
+  src       = 76:54:7d:a8:a2:03
+  type      = 0x800
+###[ IP ]###
+     version   = 4L
+     ihl       = 5L
+     tos       = 0x20
+     len       = 1500
+     id        = 19663
+     flags     = DF
+     frag      = 0L
+     ttl       = 57
+     proto     = tcp
+     chksum    = 0x5e5f
+     src       = 50.198.83.205
+     dst       = 10.0.0.59
+     \options   \
+###[ TCP ]###
+        sport     = http
+        dport     = 49486
+        seq       = 3585446781
+        ack       = 1076706841
+        dataofs   = 8L
+        reserved  = 0L
+        flags     = A
+        window    = 122
+        chksum    = 0x5f10
+        urgptr    = 0
+        options   = [('NOP', None), ('NOP', None), ('Timestamp', (2436122406, 1030112554))]
+###[ Raw ]###
+           load      = 'HTTP/1.1 200 OK\r\nDate: Tue, 25 Oct 2016 02:42:24 GMT\r\nServer: Apache/2.2.22 (Ubuntu)\r\nX-Powered-By: PHP/5.3.10-1ubuntu3.21\r\nExpires: Thu, 19 Nov 1981 08:52:00 GMT\r\nCache-Control: no-store, no-cache, must-revalidate, post-check=0, pre-check=0\r\nPragma: no-cache\r\nVary: Accept-Encoding\r\nContent-Encoding: gzip\r\nContent-Length: 6208\r\nKeep-Alive: timeout=5, max=100\r\nConnection: Keep-Alive\r\nContent-Type: text/html\r\n\r\n\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\x03\xc5<is\xe36\x96\x9f\x9d\xaa\xfc\x07X=\x15\xdb5\x96DR\x87-\xd9RF\xbe\xba=k\xb7;\xb6:\xd9\xdd\xd4l\x17$B\x12\xdb\x14\xc1\x90\xa0\xd5JW\xfe\xfb\xbe\x07\x80\x97D]\xee\x9e\xddNl\x8b \xf0\xf0\xee\x03\x87\xce\xf7m>\x14s\x9f\x91\x89\x98\xba\xdd\x1f\x7f8\x97\x7f\xcf\xf7\xcber\xeb\x85\x82zCv\xc1\xc6\x8eG\x04\x9b\xfa.\x15\xacS\xaa\xf6\xf5\xc7\xb0*\x1b+\xf6LT\xfc\x89_"Cn\xb3\x87H\x84\x8e\xcd\xde\xf5\xef\xefn\xc3;>|fv\xa74\xa2n\xc8J\xa4\\\x9630jw\t|\x982A\x89\x03\xaf\xfd\x93\x0f\xf7\xb5\x12\xf1\xe8\x14\xc0\xbf8l\xe6\xf3@ 8O0OtJ3\xc7\x16\x93\x8e\xcd^\x9c!+\xcb\x87R7\x1e?\x9c\xd0 d\xd0)\x12\xa3\xf2\xa9l_B\xfe\xdav\x04\x1d\xb8L\xcf\x80$;\xc2\x8d\x11"\xf0\xef\\6t?8\xdcc, \xbfR\xd7es\xd2\x0f\xa8\x17:\x82\xf4"1\xe1\x81#\xe6\x84\x8f\xc8o,\x14,\xf0\xc8=\rC:\x9cD0\xb9\x08\xcf\xab\n\xc0\x8f?\xec\xc9\xe9\x9f\x04\r\x04\xf9\xed\xe1\xb7\'\x17\x98\x11T\x86|J\xde]\xf7\xaeH\xc8`n\xee\xe1\xccD\xf6\xa4\xb6M\x04\'b\xc2\x88\xe6\x0c\xcc1\xe7Q@|:f\n\xc3\xbds\xd7\xf1\x9eI\xc0\xdcN)\x14s\x97\x85\x13\xc6\x80A(\xb8NI\xb0/\xa2:\x0c\xc3\x12\x99\x04l\xd4)1\x0fHfFU\xf6\xac\xc8\x17U\t$\x1c\x06\x8e/\xb2\xa3>\xd3\x17\xaaZK$\x0c\x86\xe9\xd8\xcf\x7fD,\x98W>\x87\xa5\xeeyU\xf5Hh\xbb\xf6\xec\r\x94i\x9eV%=\x0b\x02\x81\xd1\x898\x94>h\xb4\xe4\xfc\x9f\x7f\xc1y{!05\xd4H\x94\xcd\xcai\xa5V\x99:\xde":\x1b\x05\x8d\xf3\xc7Z\'\x95e"\x84_f\x7fD\xceK\xa7\x04\xbc\n\x80\x91\x195k\x1agQ\xe0v\x1c\xcff_\xa4Bw\x91\x0c\xc4\x109\t@*\x83(\x04\x9d\x18>\x7f\x05^H=l\x9b\xa7\x86\xff\xe5\x0c\x1e\'\xcc\x19OD\x9b\x9c\xe8\xe7\x01\x0f\x80=mB\xde\x18\x86AB\x0e\xdc\x02!;\x9e|\x07 \xc6\x01\x8f<\xbb\xecLA\xcam\x98\xf6p\xcal\x87V\x1d\xc0&\xac\xc6\xf3\xb0\xe0iZ\x19;\xa3\xa3\x85Q\x01\xf3\x19\x15m\x8f\xebO\x0b\xaf\x87\xdc\xe5A\xfb\xcd\xe5\xcd\xcd\xc5\xe5\r\xbeCa\x97\xa9\xeb\x8c\xbdv\x80h\x9e\x01U{\xaa\x17\xe2\xd7\xb2\xea\x8d3I\xea\xde\x08\x98Q\x9eiZ\x06\xdc\xb5\xcf\xe2\xc6\xd0\xf9\x93\xb5\x8dJ\x8bM\xcf\xf6\xa0\xcd\x07\xc5u\xbcq\xdb\xd4\xf4\x8e\\\x0e\x18\xb9l$\x91\x99\xd2\x00\xc4Q\x16\xdco\x97M\xc3R]t#\xf6i[z\xd8"\x18\xfd,G\x12\xd9\t&\xfb\xeb\xc7\x1f\x80\xf9\x02\xc4\xfe\xc1\xa5\x9e\xc7\x82\x94\xffdI\x00\xf1\xf3:&\xe33x\xaf\x14`\xe5\xb3?>\xda$\xb6\x0c\x17\x87\xa00,8[`\x98\xe4W\xcaZ\x04qF\xfe]\xcc\xda\x83\x7f\x925\x15j\xbf\xb0@8![\xc7\x16\xb3\xb1-[~\xe9\x85S\xf0\x7fV\xca\x93\r\x8a\xa7YV\xc0\xb1%\xe6d\xd4\xee\xe6\xe6\xba\t\xfc)bOV\tN\x1a\x92VE\xe9\xc0\xe5\xca\xf8l\'\x84\x104o\xcb\x06\tc\x1dK\x8d\x15,\xd5PCp\xee\x02\xa1\x82\x97ee\xcd0\xc5.x\xfdf\xc6g\xca\xd7e\xd8\xdbl.\xb0\xb7\x91\x9f\xa4M\xf2\x8fV\x01\n\xe6i\xaeM\xe2j\xe5\x14\x84hr\x10I\xc7\x1b\xf1;\'\x14\x19$,k\x01\x89\xa6\xb9\xac\xfbZ\x15oj\xf8\xdf&\r/D>\x8fY,+\xecCL\xcd\xc5\x05\xees\xd0Gh\x99\x95\xe7m\x02\xde\x9a\xbb\xae"\xc2\xafP\x1745&#u+\xc4\xa8\x9c4\xc0\xb1dd?\xe0B\xf0)8\x9c\xbajWh\xc7\xcd\x880\x19\xb8@&\xb1)DC\xa9YY\xf1\x01\xc4\x96\x82\x08\xf3N\xea\x95)\x83h=f\x0b\xd3\x9a\x15SA\xcf\r5+F\xde\xc9\xa5\xc8\xe8\xeeE\x9e@\xd2W<\x8d\xf2\x9aK\xd3\xac\x9a\xa4'
+None
+************************************************************************
+Found an injected packet!
+Injected packet:
+###[ Ethernet ]###
+  dst       = ac:bc:32:97:5b:01
+  src       = 76:54:7d:a8:a2:03
+  type      = 0x800
+###[ IP ]###
+     version   = 4L
+     ihl       = 5L
+     tos       = 0x0
+     len       = 274
+     id        = 58863
+     flags     =
+     frag      = 0L
+     ttl       = 64
+     proto     = tcp
+     chksum    = 0x329
+     src       = 50.198.83.205
+     dst       = 10.0.0.59
+     \options   \
+###[ TCP ]###
+        sport     = http
+        dport     = 49486
+        seq       = 3585446781
+        ack       = 1076706841
+        dataofs   = 5L
+        reserved  = 0L
+        flags     = PA
+        window    = 8192
+        chksum    = 0x589
+        urgptr    = 0
+        options   = []
+###[ Raw ]###
+           load      = 'HTTP/1.1 200 OK\r\nDate: Tue, 25 Oct 2016 02:45:21 GMT\r\nServer: Apache\r\nCache-Control: public, max-age=300\r\nConnection: close\r\nContent-type: text/html\r\n\r\n<html><title>Hi!</title><body><div><h1>YOYOYOYOYOYOYOYOY</h1></div></body></html>\n'
+None
+Legitmate packet:
+###[ Ethernet ]###
+  dst       = ac:bc:32:97:5b:01
+  src       = 76:54:7d:a8:a2:03
+  type      = 0x800
+###[ IP ]###
+     version   = 4L
+     ihl       = 5L
+     tos       = 0x20
+     len       = 1500
+     id        = 19668
+     flags     = DF
+     frag      = 0L
+     ttl       = 57
+     proto     = tcp
+     chksum    = 0x5e5a
+     src       = 50.198.83.205
+     dst       = 10.0.0.59
+     \options   \
+###[ TCP ]###
+        sport     = http
+        dport     = 49486
+        seq       = 3585446781
+        ack       = 1076706841
+        dataofs   = 8L
+        reserved  = 0L
+        flags     = A
+        window    = 122
+        chksum    = 0x5ed1
+        urgptr    = 0
+        options   = [('NOP', None), ('NOP', None), ('Timestamp', (2436122417, 1030112606))]
+###[ Raw ]###
+           load      = 'HTTP/1.1 200 OK\r\nDate: Tue, 25 Oct 2016 02:42:24 GMT\r\nServer: Apache/2.2.22 (Ubuntu)\r\nX-Powered-By: PHP/5.3.10-1ubuntu3.21\r\nExpires: Thu, 19 Nov 1981 08:52:00 GMT\r\nCache-Control: no-store, no-cache, must-revalidate, post-check=0, pre-check=0\r\nPragma: no-cache\r\nVary: Accept-Encoding\r\nContent-Encoding: gzip\r\nContent-Length: 6208\r\nKeep-Alive: timeout=5, max=100\r\nConnection: Keep-Alive\r\nContent-Type: text/html\r\n\r\n\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\x03\xc5<is\xe36\x96\x9f\x9d\xaa\xfc\x07X=\x15\xdb5\x96DR\x87-\xd9RF\xbe\xba=k\xb7;\xb6:\xd9\xdd\xd4l\x17$B\x12\xdb\x14\xc1\x90\xa0\xd5JW\xfe\xfb\xbe\x07\x80\x97D]\xee\x9e\xddNl\x8b \xf0\xf0\xee\x03\x87\xce\xf7m>\x14s\x9f\x91\x89\x98\xba\xdd\x1f\x7f8\x97\x7f\xcf\xf7\xcber\xeb\x85\x82zCv\xc1\xc6\x8eG\x04\x9b\xfa.\x15\xacS\xaa\xf6\xf5\xc7\xb0*\x1b+\xf6LT\xfc\x89_"Cn\xb3\x87H\x84\x8e\xcd\xde\xf5\xef\xefn\xc3;>|fv\xa74\xa2n\xc8J\xa4\\\x9630jw\t|\x982A\x89\x03\xaf\xfd\x93\x0f\xf7\xb5\x12\xf1\xe8\x14\xc0\xbf8l\xe6\xf3@ 8O0OtJ3\xc7\x16\x93\x8e\xcd^\x9c!+\xcb\x87R7\x1e?\x9c\xd0 d\xd0)\x12\xa3\xf2\xa9l_B\xfe\xdav\x04\x1d\xb8L\xcf\x80$;\xc2\x8d\x11"\xf0\xef\\6t?8\xdcc, \xbfR\xd7es\xd2\x0f\xa8\x17:\x82\xf4"1\xe1\x81#\xe6\x84\x8f\xc8o,\x14,\xf0\xc8=\rC:\x9cD0\xb9\x08\xcf\xab\n\xc0\x8f?\xec\xc9\xe9\x9f\x04\r\x04\xf9\xed\xe1\xb7\'\x17\x98\x11T\x86|J\xde]\xf7\xaeH\xc8`n\xee\xe1\xccD\xf6\xa4\xb6M\x04\'b\xc2\x88\xe6\x0c\xcc1\xe7Q@|:f\n\xc3\xbds\xd7\xf1\x9eI\xc0\xdcN)\x14s\x97\x85\x13\xc6\x80A(\xb8NI\xb0/\xa2:\x0c\xc3\x12\x99\x04l\xd4)1\x0fHfFU\xf6\xac\xc8\x17U\t$\x1c\x06\x8e/\xb2\xa3>\xd3\x17\xaaZK$\x0c\x86\xe9\xd8\xcf\x7fD,\x98W>\x87\xa5\xeeyU\xf5Hh\xbb\xf6\xec\r\x94i\x9eV%=\x0b\x02\x81\xd1\x898\x94>h\xb4\xe4\xfc\x9f\x7f\xc1y{!05\xd4H\x94\xcd\xcai\xa5V\x99:\xde":\x1b\x05\x8d\xf3\xc7Z\'\x95e"\x84_f\x7fD\xceK\xa7\x04\xbc\n\x80\x91\x195k\x1agQ\xe0v\x1c\xcff_\xa4Bw\x91\x0c\xc4\x109\t@*\x83(\x04\x9d\x18>\x7f\x05^H=l\x9b\xa7\x86\xff\xe5\x0c\x1e\'\xcc\x19OD\x9b\x9c\xe8\xe7\x01\x0f\x80=mB\xde\x18\x86AB\x0e\xdc\x02!;\x9e|\x07 \xc6\x01\x8f<\xbb\xecLA\xcam\x98\xf6p\xcal\x87V\x1d\xc0&\xac\xc6\xf3\xb0\xe0iZ\x19;\xa3\xa3\x85Q\x01\xf3\x19\x15m\x8f\xebO\x0b\xaf\x87\xdc\xe5A\xfb\xcd\xe5\xcd\xcd\xc5\xe5\r\xbeCa\x97\xa9\xeb\x8c\xbdv\x80h\x9e\x01U{\xaa\x17\xe2\xd7\xb2\xea\x8d3I\xea\xde\x08\x98Q\x9eiZ\x06\xdc\xb5\xcf\xe2\xc6\xd0\xf9\x93\xb5\x8dJ\x8bM\xcf\xf6\xa0\xcd\x07\xc5u\xbcq\xdb\xd4\xf4\x8e\\\x0e\x18\xb9l$\x91\x99\xd2\x00\xc4Q\x16\xdco\x97M\xc3R]t#\xf6i[z\xd8"\x18\xfd,G\x12\xd9\t&\xfb\xeb\xc7\x1f\x80\xf9\x02\xc4\xfe\xc1\xa5\x9e\xc7\x82\x94\xffdI\x00\xf1\xf3:&\xe33x\xaf\x14`\xe5\xb3?>\xda$\xb6\x0c\x17\x87\xa00,8[`\x98\xe4W\xcaZ\x04qF\xfe]\xcc\xda\x83\x7f\x925\x15j\xbf\xb0@8![\xc7\x16\xb3\xb1-[~\xe9\x85S\xf0\x7fV\xca\x93\r\x8a\xa7YV\xc0\xb1%\xe6d\xd4\xee\xe6\xe6\xba\t\xfc)bOV\tN\x1a\x92VE\xe9\xc0\xe5\xca\xf8l\'\x84\x104o\xcb\x06\tc\x1dK\x8d\x15,\xd5PCp\xee\x02\xa1\x82\x97ee\xcd0\xc5.x\xfdf\xc6g\xca\xd7e\xd8\xdbl.\xb0\xb7\x91\x9f\xa4M\xf2\x8fV\x01\n\xe6i\xaeM\xe2j\xe5\x14\x84hr\x10I\xc7\x1b\xf1;\'\x14\x19$,k\x01\x89\xa6\xb9\xac\xfbZ\x15oj\xf8\xdf&\r/D>\x8fY,+\xecCL\xcd\xc5\x05\xees\xd0Gh\x99\x95\xe7m\x02\xde\x9a\xbb\xae"\xc2\xafP\x1745&#u+\xc4\xa8\x9c4\xc0\xb1dd?\xe0B\xf0)8\x9c\xbajWh\xc7\xcd\x880\x19\xb8@&\xb1)DC\xa9YY\xf1\x01\xc4\x96\x82\x08\xf3N\xea\x95)\x83h=f\x0b\xd3\x9a\x15SA\xcf\r5+F\xde\xc9\xa5\xc8\xe8\xeeE\x9e@\xd2W<\x8d\xf2\x9aK\xd3\xac\x9a\xa4'
+None
+************************************************************************
+Found an injected packet!
+Injected packet:
+###[ Ethernet ]###
+  dst       = ac:bc:32:97:5b:01
+  src       = 76:54:7d:a8:a2:03
+  type      = 0x800
+###[ IP ]###
+     version   = 4L
+     ihl       = 5L
+     tos       = 0x0
+     len       = 274
+     id        = 52765
+     flags     =
+     frag      = 0L
+     ttl       = 64
+     proto     = tcp
+     chksum    = 0x1afb
+     src       = 50.198.83.205
+     dst       = 10.0.0.59
+     \options   \
+###[ TCP ]###
+        sport     = http
+        dport     = 49486
+        seq       = 3585453402
+        ack       = 1076707244
+        dataofs   = 5L
+        reserved  = 0L
+        flags     = PA
+        window    = 8192
+        chksum    = 0xea17
+        urgptr    = 0
+        options   = []
+###[ Raw ]###
+           load      = 'HTTP/1.1 200 OK\r\nDate: Tue, 25 Oct 2016 02:45:22 GMT\r\nServer: Apache\r\nCache-Control: public, max-age=300\r\nConnection: close\r\nContent-type: text/html\r\n\r\n<html><title>Hi!</title><body><div><h1>YOYOYOYOYOYOYOYOY</h1></div></body></html>\n'
+None
+Legitmate packet:
+###[ Ethernet ]###
+  dst       = ac:bc:32:97:5b:01
+  src       = 76:54:7d:a8:a2:03
+  type      = 0x800
+###[ IP ]###
+     version   = 4L
+     ihl       = 5L
+     tos       = 0x20
+     len       = 1497
+     id        = 19669
+     flags     = DF
+     frag      = 0L
+     ttl       = 57
+     proto     = tcp
+     chksum    = 0x5e5c
+     src       = 50.198.83.205
+     dst       = 10.0.0.59
+     \options   \
+###[ TCP ]###
+        sport     = http
+        dport     = 49486
+        seq       = 3585453402
+        ack       = 1076707244
+        dataofs   = 8L
+        reserved  = 0L
+        flags     = PA
+        window    = 130
+        chksum    = 0x58e9
+        urgptr    = 0
+        options   = [('NOP', None), ('NOP', None), ('Timestamp', (2436122566, 1030113200))]
+###[ Raw ]###
+           load      = 'HTTP/1.1 200 OK\r\nDate: Tue, 25 Oct 2016 02:42:24 GMT\r\nServer: Apache/2.2.22 (Ubuntu)\r\nLast-Modified: Fri, 29 May 2015 14:01:55 GMT\r\nETag: "24139d-47e-51738eb3ba1ed"\r\nAccept-Ranges: bytes\r\nContent-Length: 1150\r\nKeep-Alive: timeout=5, max=99\r\nConnection: Keep-Alive\r\nContent-Type: image/x-icon\r\n\r\n\x00\x00\x01\x00\x01\x00\x10\x10\x00\x00\x01\x00 \x00h\x04\x00\x00\x16\x00\x00\x00(\x00\x00\x00\x10\x00\x00\x00 \x00\x00\x00\x01\x00 \x00\x00\x00\x00\x00\x00\x04\x00\x00\x12\x0b\x00\x00\x12\x0b\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xfb\xf8\xf5\x02\x9aaX\xa3\x95ZP\xb5\x9abY\x04\xab}v\x00\xaa{t\x18\x9bcZ\xb9\xa0kc)\x9df]\x00\x9cd[,\x96ZQ\xe3\x9bbY\x86\x9abX\x9b\x9f~\xa9\x17`A\xb1\xbbeF\xb3\xf7\x00\x00\x00\x00~6*\x96|2\'\xc0\xbc\x97\x91\n\x9aaX\x00\x88F<\x17{2&\xc6\x88E;?\x87D9\x00\x8aI>#x, \xe0\x8aH>\x82\x84=0\x9crO\xa1j5\x0c\x9c\xf55\x0c\x9c\xdc6\x00\x00\x00\x81:/\x87}3(\xc8\xab|t\r\x93VM\x00\x86B8\x18y-"\xd3\x83>4Y\x808-\x00\x8dND\x1bz/$\xdc\x84>2t\x87GE\x9dO&\x97\xda-\x01\x98\xffB\x1b\xa1\xc5l\x1a\r\x00~6*xy-!\xc8\x8eOE\x0e\x95YP\x00\x98_V!z/$\xe4}4)uv)\x1d\x00\x94XN\x15z0$\xd3\x84=/vsM\x9a\x9f5\n\x99\xff9\x0f\x9a\xff\x7fW\x90\xbcq!\x15\x00\x84?5o{1&\xd4\x95YP\x16\x8dMC\x00\x87D9"w*\x1f\xe7\x7f8-\x9b\x00\x00\x00\x00\xa0kc\x0f|1$\xc8\x7fEX\xb0<\x16\xa3\xd9-\x02\x9a\xffb5\x87\xff\x89IB\xa7v*\x1e\x00\x85A6_y.#\xd6\x88F<\x19\x8bKA\x00\x8fPF+y-"\xec\x7f8-\xb8\xa8xq\x07\x9c\\A\x08\x88HC\xbc_4\x8b\xfa,\x01\x99\xffA\x1b\xa0\xe9\x80CN\xee~4&\x99y-"\x00\x809.N~6*\xec\xaf\x81zv\xbf\x9c\x96\x0f\x8aI>1|2\'\xe7\x87C9\xbc\x8dL@\x15\xc8\xb5\xca\x0erN\x9e\xc44\n\x9a\xff:\x10\x9b\xffwR\x9a\x9d|1#\xc7|2\'\x89\x819/\x00\x87D9Gw+\x1f\xf8|2\'\xfd\x8cLB\x83\x89G=9|2\'\xe0\x8cKA\xb1\x9cd^6cE\xb5u6\x0e\x9d\xf60\x06\x9a\xfdc=\x9c\xb9\x95ZS\x9d|2&\xd4\x82<1\x7f\xff\xff\xff\x06\x81;0:z/$\xea\x82;0\xe6x,!\xc9\x87D9Wy,\x1f\xda\x90RK\x92uO\x97\xb68\x10\x9e\xf11\x07\x9a\xff]:\xa6\xc3\x94j\x8a-\x85A5\x98z/$\xdd\x82;0l\xb7\xa9\xe0j\x90a}^z/$\xdb\x86A4\x85{0!\xdc\x8dL?u\x8bRZ\xe6hD\xa2\xcd8\x0f\x9c\xfe1\x08\x9b\xfag>\x90\xf5\x8bPS\xac\x95Q7\n\x87C9\x9d}4)\xf0\x8bJ@b\xa5\x94\xdb0\x86a\xa0\x9d{3.\xef\x89[{\xb1\x85X\x84\xeaoL\xa1\xd1M(\xa1\xfc2\t\x9b\xff?\x19\xa1\xf1\\=\xb4\x85\x81><\x96}3&\xbe\xc2\xa1\x9c\x08\x81:/\x94y."\xfa\x84?4P\x86B6\x00\x96cm0}4+\xe7mE\x8b\xf1O.\xab\xfbH#\xa4\xffQ.\xa5\xf7eB\xa7\xc0\x8fc\x83\xaa\xd0\xc5\xe2\x08\x7f7,\x7fz0$\xc6\xb2\x87\x81\t~5*wv*\x1e\xf2\x83>4B\x88E;\x00\x87D9\x1by-"\xd6\x8eTW\x91\x8fYd\xe0\x99ix\xd6\x90WY\xda\xa4rl5\x87B5\x99\xad\x7fw\x16\x82;0r{1%\xd0\xab|t\x11\x809.Zy."\xe9\x8fQG;\x95YP\x00\x93VM\x19{0%\xd6\x8aI>\xabz/"\xe1\x7f7*\xb6z."\xd4\x9cd[!\x84?4\x97\x99`Wo\x85A6\xbay.#\xec\x91SJ\x85\x89G=Sy."\xd9\x8bI?.\x9bc[\x00\x9aaX\x15z/$\xd2|2\'\xff{1%\xe1\x83=2\xabv)\x1d\xcc\x91TJ\x12\x85@5\x8a\x85A7\xa7u(\x1c\xfas$\x18\xffw*\x1f\xdb\x8eOEN~6+\xcb\x93VM)\x9bc[\x00\x99_W\x0f\x90RH\xc8\x85@5\xff\x91SI\xa9\x96[R\x93\x90RI\xcd\xa0jb\x0e\x97\\Sx\x95ZP\xb4\x8fPE\xf7\x91RI\xff\x90RH\xe5\x9df^H\x89G=\xb2\x8aH>\x1f\x08\x80\x00\x00\x88\x80\x00\x00\x88\x80\x00\x00\x88\x80\x00\x00\x88\x80\x00\x00\x88\x00\x00\x00\x80\x00\x00\x00\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x80\x00\x00\x00\x80\x00\x00\x00\x80\x00\x00\x00\x80\x00\x00\x00\x80\x00\x00\x00'
+None
