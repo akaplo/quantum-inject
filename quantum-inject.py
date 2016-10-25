@@ -1,6 +1,6 @@
 # python 2.7
-# how to run: python quantum.py --interface eth0 --regexp /^regex$/ --datafile someFIle expr
-# example that I used during testing: python quantum.py --interface en0 --regexp chewbacca --datafile datafile.txt "tcp and port 80"
+# how to run: python quantum-inject.py -i network_interface -r regex --datafile filepath filter_expression
+# example that I used during testing: python quantum-inject.py --interface en0 --regexp pvta --datafile datafile.txt "tcp and port 80"
 import argparse
 from scapy.all import *
 import re

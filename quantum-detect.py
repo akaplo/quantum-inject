@@ -1,5 +1,5 @@
 # python 2.7
-# example: python quantum-detect.py --interface en0 -r ~/Downloads/eureka.tcpdump "tcp and port 80"
+# example I used during testing: python quantum-detect.py --interface en0 "tcp and port 80"
 import argparse
 from scapy.all import *
 import re
