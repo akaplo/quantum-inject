@@ -1,14 +1,5 @@
-# To detect:
-# read a packet's seq/ack nums and payload size
-# if another packet has the same seq/ack nums, consider it for alerting.
-# Throw out all others
-# Before alerting, check the see if the payload is mostly identical.
-# Alert if so, otherwise throw it out.
-
-# That sounds n^2.  Any way to do it better?
-
 # python 2.7
-# how to run: python quantum.py --interface eth0 --regexp /^regex$/ --datafile someFIle expr
+# example: python quantum-detect.py --interface en0 -r ~/Downloads/eureka.tcpdump "tcp and port 80"
 import argparse
 from scapy.all import *
 import re
@@ -16,10 +7,10 @@ from time import *
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-i", "--interface", dest="interface", help="interface", required=True)
+parser.add_argument("-i", "--interface", default="en0", dest="interface", help="interface", required=True)
 
 parser.add_argument("-r", "--file", dest="file", help="tcpdump input to parse and check for injections")
-
+parser.add_argument("expression", default="tcp and port 80", help="A filter for packet sniffing (eg 'tcp and port 80' for HTTP-only). MUST BE SURROUNDED BY QUOTATION MARKS")
 args = parser.parse_args()
 
 sniffed = []
@@ -47,22 +38,21 @@ def find_injected_packets(packet):
                                     # hold, but the payload wouldn't match:
                                     if check_against[TCP][Raw].load != packet[TCP][Raw].load:
                                         print '************************************************************************'
-                                        print 'injection motherfucker'
+                                        print 'Found an injected packet!'
                                         # We can assume that the legitmate packet arrived after the
                                         # injected one, so check_against must've been injected, since
                                         # the nature of this function is such that a packet from the global
                                         # list is less recent than the packet that this function was called with.
-                                        print "Injected packet's payload:"
-                                        print check_against[Raw].load
-                                        print "Legitmate packet's payload:"
-                                        print packet[Raw].load
-                                        print '************************************************************************'
+                                        print "Injected packet:"
+                                        print check_against.show()
+                                        print "Legitmate packet:"
+                                        print packet.show()
         # Now outside of the loop, we add the newest packet to the
         # global list so that it can be used to check against newer packets
         sniffed.append(packet)
 
 if (args.file):
-    packets = sniff(offline=args.file, filter="tcp and port 80", lfilter=lambda r: r.haslayer(Raw), prn=lambda pkt: find_injected_packets(pkt))
+    packets = sniff(offline=args.file, filter=args.expression, lfilter=lambda r: r.haslayer(Raw), prn=lambda pkt: find_injected_packets(pkt))
 else:
     # Sniff packets straight from the given network interface.
 
@@ -71,4 +61,4 @@ else:
     # may get so far behind (sure, it's a linear function, but still...)
     # that the script will be reporting injected packets
     # long after the fact.
-    sniffed_packets = sniff(count=5000, iface=args.interface, filter="tcp and port 80", lfilter=lambda r: r.haslayer(Raw), prn=lambda k: find_injected_packets(k))
+    sniffed_packets = sniff(count=5000, iface=args.interface, filter=args.expression, lfilter=lambda r: r.haslayer(Raw), prn=lambda k: find_injected_packets(k))
